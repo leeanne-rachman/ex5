@@ -30,7 +30,7 @@ typedef struct Playlist {
 } Playlist;
 
 //this function prints the menu of a single playlist and scans the action input from the user
-void managePlaylistMenu(Playlist *playlist);
+void managePlaylistMenu(Playlist *playlist, Playlist *playlists, const int *currentNumOfPlaylists);
 
 //this function receives a pointer to a playlist and prints the menu of the playlist
 void printPlaylistMenu(const Playlist *playlist);
@@ -39,10 +39,10 @@ void printPlaylistMenu(const Playlist *playlist);
 void printMainMenu();
 
 //this function free's the space of a certain playlist
-void freePlaylist(Playlist *playlistPointer, int sizeOfPlaylist);
+void freePlaylist(Playlist *playlistPointer);
 
 //this function free's the space of a certain song
-void freeSong(Song **songs[], int numOfSongs);
+void freeSong(Song *song);
 
 //this function plays a song
 void playSong(const Playlist *playlist, int songIndex);
@@ -69,9 +69,17 @@ Playlist *createPlaylist(const char *name);
 
 char *allocateMemoryForField();
 
-void removePlaylist();
+void removePlaylist(Playlist **head, int *currentNumberOfPlaylists);
 
 void sortPlaylist();
+
+void sortByYear(Playlist *playlist);
+
+void sortByStreams(Playlist *playlist, int ascendingOrDescendingOrder);
+
+void sortAlphabetically(Playlist *playlist);
+
+void swap(Song *firstSong, Song *secondSong);
 
 void playPlaylist(Playlist *playlist);
 
@@ -79,7 +87,6 @@ void playPlaylist(Playlist *playlist);
 void showPlaylist(Playlist *playlist);
 
 void printSongs(const Playlist *playlist);
-
 
 int main() {
     int choice = 0;
@@ -99,7 +106,7 @@ int main() {
                 addPlaylist(&playlists, &currentNumberOfPlaylists);
                 break;
             case 3:
-                removePlaylist();
+                removePlaylist(&playlists, &currentNumberOfPlaylists);
                 break;
             case 4:
                 printf("Goodbye!");
@@ -110,11 +117,39 @@ int main() {
         printMainMenu();
         scanf("%d", &choice);
     }
-    //freePlaylist(&playlists, sizeof(Playlist));
     printf("Goodbye!\n");
+    //fix free of all playlists
+    if(playlists != NULL) {
+        playlists->next = NULL;
+        freePlaylist(playlists);
+    }
     return 0;
 }
 
+void freePlaylist(Playlist *playlistPointer) {
+    Song *temp = playlistPointer->headSong;
+    if(playlistPointer->songsNum == 1) {
+        free(playlistPointer->headSong);
+        return;
+    }
+
+    while (temp != NULL) {
+        Song *songToDelete = temp;
+        temp = temp->next; // Move to the next song
+        freeSong(songToDelete);
+    }
+
+    free(playlistPointer->name);
+    free(playlistPointer->next);
+    free(playlistPointer);
+}
+
+void freeSong(Song *song) {
+    free(song->artist);
+    free(song->title);
+    free(song->lyrics);
+    free(song);
+}
 
 void printMainMenu() {
     printf("Please Choose:\n");
@@ -151,7 +186,7 @@ void watchPlaylists(Playlist *playlists, const int *currentNumOfPlaylists) {
         return;
     }
 
-    managePlaylistMenu(playlistToWatch);
+    managePlaylistMenu(playlistToWatch, playlists, currentNumOfPlaylists);
 }
 
 void printListOfPlaylists(Playlist *playlists, const int *currentNumOfPlaylists) {
@@ -179,14 +214,14 @@ Playlist *findPlaylist(Playlist *head, int userChoice) {
         if (index == userChoice) {
             return currentPlaylist;
         }
-
+        currentPlaylist = currentPlaylist->next;
         index++;
     }
 
     return NULL;
 }
 
-void managePlaylistMenu(Playlist *playlist) {
+void managePlaylistMenu(Playlist *playlist, Playlist *playlists, const int *currentNumOfPlaylists) {
     int choice = 0;
     printf("playlist %s:\n", playlist->name);
     printPlaylistMenu(playlist);
@@ -217,6 +252,7 @@ void managePlaylistMenu(Playlist *playlist) {
         printPlaylistMenu(playlist);
         scanf("%d", &choice);
     }
+    watchPlaylists(playlists, currentNumOfPlaylists);
 }
 
 void printPlaylistMenu(const Playlist *playlist) {
@@ -247,7 +283,7 @@ void printSongs(const Playlist *playlist) {
     Song *currentSong = playlist->headSong;
     int index = 1;
     while (currentSong != NULL) {
-        printf("%d. Title: %s\n\t Artist: %s\n\t Releases: %d\n\t streams: %d\n\t", index, currentSong->title,
+        printf("%d. Title: %s\n   Artist: %s\n   Releases: %d\n   streams: %d\n", index, currentSong->title,
                currentSong->artist, currentSong->year, currentSong->streams);
         index++;
         currentSong = currentSong->next;
@@ -261,7 +297,7 @@ void playSong(const Playlist *playlist, int songIndex) {
         currentSong = currentSong->next;
     }
 
-    printf("Now playing %s:\n$%s$\n", currentSong->title, currentSong->lyrics);
+    printf("Now playing %s:\n$%s$\n\n", currentSong->title, currentSong->lyrics);
     (currentSong->streams)++;
 }
 
@@ -269,6 +305,7 @@ void addSong(Playlist *playlist) {
     int year = 0;
     printf("Enter song's details\n");
     printf("Title:\n");
+    //check if allowed
     getchar();
     const char *title = allocateMemoryForField();
 
@@ -308,7 +345,7 @@ Song *createSong(const char *title, const char *artist, const int yearOfRelease,
 
 
     if (song->artist == NULL || song->lyrics == NULL || song->title == NULL) {
-        free(song);
+        freeSong(song);
         exit(1);
     }
 
@@ -347,10 +384,7 @@ void deleteSong(Playlist *playlist) {
                 }
 
                 // Free the memory for the song
-                free(currentSong->title);
-                free(currentSong->artist);
-                free(currentSong->lyrics);
-                free(currentSong);
+                freeSong(currentSong);
                 (playlist->songsNum)--;
 
                 printf("Song deleted successfully.\n");
@@ -367,7 +401,6 @@ void deleteSong(Playlist *playlist) {
 void addPlaylist(Playlist **head, int *currentNumberOfPlaylists) {
     Playlist *newPlaylist = (Playlist *) malloc(sizeof(Playlist));
     if (newPlaylist == NULL) {
-        printf("Memory allocation failed for new playlist!\n");
         exit(1);
     }
 
@@ -407,15 +440,15 @@ void addPlaylist(Playlist **head, int *currentNumberOfPlaylists) {
     (*currentNumberOfPlaylists)++;
 }
 
+//ask claude to add a cleaning of tavim shkufim
 char *allocateMemoryForField() {
     // Dynamically allocate memory for the playlist name
     char *field = NULL;
     int size = 0;
     char ch;
 
-    //getchar();
     // Read the playlist name one character at a time
-    while ((ch = getchar()) != '\n' && ch != EOF) {
+    while ((ch = getchar()) != '\n') {
         // Allocate or reallocate memory for the name
         field = (char *) realloc(field, size + 2); // +1 for the new char, +1 for '\0'
         if (field == NULL) {
@@ -429,21 +462,213 @@ char *allocateMemoryForField() {
     return field;
 }
 
-void freeSong(Song **songs[], int numOfSongs) {
-    for (int i = 0; i < numOfSongs; i++) {
-        free((*songs)[i]);
+void sortPlaylist(Playlist *playlist) {
+    int sortingMethod = 0;
+    printf("choose:\n1. sort by year\n2. sort by streams - ascending order\n3. sort by streams - descending order"
+        "\n4. sort alphabetically\n");
+    scanf("%d", &sortingMethod);
+    switch (sortingMethod) {
+        case 1:
+            sortByYear(playlist);
+            break;
+        case 2:
+            sortByStreams(playlist, 0);
+            break;
+        case 3:
+            sortByStreams(playlist, 1);
+            break;
+        default:
+            sortAlphabetically(playlist);
+            break;
     }
+    printf("sorted\n");
 }
 
-void freePlaylist(Playlist *playlistPointer, int sizeOfPlaylist) {
+void sortAlphabetically(Playlist *playlist) {
+    if (playlist->headSong == NULL) {
+        return;
+    }
+
+    int swapped;
+    Song *prev = NULL;
+    Song *current = NULL;
+
+    do {
+        swapped = 0; // Reset swapped flag
+        prev = NULL;
+        current = playlist->headSong;
+
+        // Traverse the list to compare adjacent nodes
+        while (current != NULL && current->next != NULL) {
+            // Compare the titles alphabetically (lexicographical order)
+            if (strcmp(current->title, current->next->title) > 0) {
+                if (prev == NULL) {
+                    // If current is the head, we update the head pointer
+                    playlist->headSong = current->next;
+                } else {
+                    prev->next = current->next;
+                }
+
+                // Swap the next pointers of the nodes
+                Song *temp = current->next;
+                current->next = temp->next;
+                temp->next = current;
+
+                swapped = 1; // A swap was made
+            }
+            prev = current;
+            current = current->next;
+        }
+    } while (swapped); // If a swap occurred, repeat the loop
 }
 
-void removePlaylist() {
+// ascending = 1, descending = 0
+void sortByStreams(Playlist *playlist, int ascendingOrDescendingOrder) {
+    if (playlist->headSong == NULL) {
+        return;
+    }
+
+    int swapped;
+    Song *prev = NULL;
+    Song *current = NULL;
+
+    do {
+        swapped = 0;
+        prev = NULL;
+        current = playlist->headSong;
+
+        // Traverse the list and compare adjacent nodes
+        while (current != NULL && current->next != NULL) {
+            // Compare streams based on the order (ascending or descending)
+            if ((ascendingOrDescendingOrder == 0 && current->streams > current->next->streams) ||
+                (ascendingOrDescendingOrder == 1 && current->streams < current->next->streams)) {
+                // Swap the two songs if they are in the wrong order
+                if (prev == NULL) {
+                    // If current is the head, we update the head pointer
+                    playlist->headSong = current->next;
+                } else {
+                    prev->next = current->next;
+                }
+
+                // Swap the next pointers of the nodes
+                Song *temp = current->next;
+                current->next = temp->next;
+                temp->next = current;
+
+                swapped = 1; // A swap was made
+            }
+
+            prev = current;
+            current = current->next;
+        }
+    } while (swapped); // If a swap occurred, repeat the loop
+}
+
+void sortByYear(Playlist *playlist) {
+    if (playlist->headSong == NULL) {
+        return;
+    }
+
+    int swapped;
+    Song *current;
+
+    // Keep swapping until no more swaps are needed
+    do {
+        swapped = 0; // Reset the swapped flag on each pass
+        current = playlist->headSong;
+
+        // Traverse the list and compare adjacent nodes
+        while (current != NULL && current->next != NULL) {
+            if (current->year > current->next->year) {
+                // Swap the songs if they are in the wrong order
+                Song *temp = current->next; // Point to the next node
+                current->next = temp->next; // Skip over the next node (link to the next of next)
+                temp->next = current; // Now, the next of temp points to current (swap complete)
+
+                // Update the head if the swapped node is the new head
+                if (current == playlist->headSong) {
+                    playlist->headSong = temp;
+                }
+
+                swapped = 1; // A swap was made
+            } else {
+                current = current->next;
+            }
+        }
+    } while (swapped); // If a swap occurred, repeat the loop
+}
+
+// Function to swap data of two songs
+void swap(Song *firstSong, Song *secondSong) {
+    // Swap other fields like title, artist if needed
+    char *tempTitle = firstSong->title;
+    firstSong->title = secondSong->title;
+    secondSong->title = tempTitle;
+
+    char *tempArtist = firstSong->artist;
+    firstSong->artist = secondSong->artist;
+    secondSong->artist = tempArtist;
+
+    int tempYear = firstSong->year;
+    firstSong->year = secondSong->year;
+    secondSong->year = tempYear;
+
+    Song *tempNext = firstSong->next;
+    firstSong->next = secondSong->next;
+    secondSong->next = tempNext;
+
+    char *tempLyrics = firstSong->lyrics;
+    firstSong->lyrics = secondSong->lyrics;
+    secondSong->lyrics = tempLyrics;
+
+    int tempStreams = firstSong->streams;
+    firstSong->streams = secondSong->streams;
+    secondSong->streams = tempStreams;
 }
 
 void playPlaylist(Playlist *playlist) {
+    int index = 0;
+    Song *currentSong = playlist->headSong;
+    while (currentSong != NULL) {
+        playSong(playlist, index);
+        index++;
+        currentSong = currentSong->next;
+    }
 }
 
-void sortPlaylist() {
-    printf("sorted\n");
+void removePlaylist(Playlist **head, int *currentNumberOfPlaylists) {
+    printListOfPlaylists(*head, currentNumberOfPlaylists); // Note: head is now a pointer to pointer
+    int choice = 0;
+    scanf("%d", &choice);
+
+    // If the list is empty
+    if (*head == NULL) {
+        return; // Empty list, nothing to remove
+    }
+
+    // If user wants to remove the first playlist (head)
+    if (choice == 1) {
+        Playlist *temp = *head;
+        *head = (*head)->next; // Move the head to the next playlist
+        freePlaylist(temp); // Free the old head
+        (*currentNumberOfPlaylists)--; // Decrease the count
+        return;
+    }
+
+    // Traversing the list to find the playlist to remove
+    int index = 1;
+    Playlist *prev = *head;
+    Playlist *currentPlaylist = (*head)->next;
+
+    while (currentPlaylist != NULL) {
+        index++;
+        if (index == choice) {
+            prev->next = currentPlaylist->next; // Bypass the current playlist
+            freePlaylist(currentPlaylist);
+            (*currentNumberOfPlaylists)--; // Decrease the playlist count
+            return;
+        }
+        prev = currentPlaylist; // Move to the next playlist
+        currentPlaylist = currentPlaylist->next; // Move to the next playlist
+    }
 }
