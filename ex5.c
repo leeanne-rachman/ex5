@@ -258,12 +258,12 @@ void printPlaylistMenu() {
     printf("\t3. Delete Song\n");
     printf("\t4. Sort\n");
     printf("\t5. Play\n");
-    printf("\t6. Exit\n");
+    printf("\t6. exit\n");
 }
 
 void showPlaylist(Playlist *playlist) {
     printSongs(playlist);
-    printf("\nChoose a song to play, or 0 to quit:\n");
+    printf("\nchoose a song to play, or 0 to quit:\n");
     int songIndex = -1;
     scanf("%d", &songIndex);
     if (songIndex <= 0 || songIndex > playlist->songsNum) {
@@ -271,7 +271,7 @@ void showPlaylist(Playlist *playlist) {
     }
     while (songIndex != 0) {
         playSong(playlist, songIndex - 1);
-        printf("Choose a song to play, or 0 to quit:\n");
+        printf("choose a song to play, or 0 to quit:\n");
         scanf("%d", &songIndex);
     }
 }
@@ -280,7 +280,7 @@ void printSongs(const Playlist *playlist) {
     Song *currentSong = playlist->headSong;
     int index = 1;
     while (currentSong != NULL) {
-        printf("%d. Title: %s\n   Artist: %s\n   Releases: %d\n   streams: %d\n", index, currentSong->title,
+        printf("%d. Title: %s\n   Artist: %s\n   Released: %d\n   Streams: %d\n", index, currentSong->title,
                currentSong->artist, currentSong->year, currentSong->streams);
         index++;
         currentSong = currentSong->next;
@@ -302,16 +302,15 @@ void addSong(Playlist *playlist) {
     int year = 0;
     printf("Enter song's details\n");
     printf("Title:\n");
-    //check if allowed
-    getchar();
+    scanf("%*c");
     char *title = allocateMemoryForField();
 
     printf("Artist:\n");
     char *artist = allocateMemoryForField();
     printf("Year of release:\n");
     scanf("%d", &year);
+    scanf("%*c");
     printf("Lyrics:\n");
-    getchar();
     char *lyrics = allocateMemoryForField();
 
     Song *newSong = createSong(title, artist, year, lyrics);
@@ -326,7 +325,6 @@ void addSong(Playlist *playlist) {
         temp->next = newSong;
     }
     //insertion
-
     newSong->next = NULL;
     (playlist->songsNum)++;
 
@@ -401,7 +399,7 @@ void deleteSong(Playlist *playlist) {
 
 void addPlaylist(Playlist **head, int *currentNumberOfPlaylists) {
     printf("Enter playlist's name:\n");
-    getchar();
+    scanf("%*c");
     char *playlistName = allocateMemoryForField();
     Playlist *newPlaylist = createPlaylist(playlistName);
     // // If the list is empty (head is NULL), make newPlaylist the head
@@ -445,28 +443,47 @@ Playlist *createPlaylist(const char *playlistName) {
     return newPlaylist;
 }
 
-//ask claude to add a cleaning of tavim shkufim
 char *allocateMemoryForField() {
     // Dynamically allocate memory for the playlist name
     char *field = NULL;
     int size = 0;
     char ch;
 
-    // Read the playlist name one character at a time
-    while ((ch = getchar()) != '\n') {
+    // Skip leading whitespace
+    while ((ch = getchar()) == '\n' || ch == '\r' || ch == '\0' || ch == '\t') {
+        // Do nothing, just consume the character
+    }
+
+    // Check if the first valid character is not a newline
+    if (ch != '\n') {
+        // Read the first valid character
         char *temp = realloc(field, size + 2);
         if (temp == NULL) {
             free(field);
             exit(1);
         }
         field = temp;
-        field[size++] = ch; // Add the character to the name
+        field[size++] = ch; // Add the first valid character to the name
+
+        // Read the rest of the playlist name one character at a time
+        while ((ch = getchar()) != '\n') {
+            temp = realloc(field, size + 2);
+            if (temp == NULL) {
+                free(field);
+                exit(1);
+            }
+            field = temp;
+            field[size++] = ch; // Add the character to the name
+        }
     }
 
-    field[size] = '\0'; // Null-terminate the string
+    if (field) {
+        field[size] = '\0'; // Null-terminate the string
+    }
 
     return field;
 }
+
 
 void sortPlaylist(Playlist *playlist) {
     int sortingMethod = 0;
