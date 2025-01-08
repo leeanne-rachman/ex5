@@ -294,7 +294,7 @@ void playSong(const Playlist *playlist, int songIndex) {
         currentSong = currentSong->next;
     }
 
-    printf("Now playing %s:\n$%s$\n", currentSong->title, currentSong->lyrics);
+    printf("Now playing %s:\n$ %s $\n", currentSong->title, currentSong->lyrics);
     (currentSong->streams)++;
 }
 
@@ -360,7 +360,7 @@ Song *createSong(char *title, char *artist, int yearOfRelease, char *lyrics) {
 void deleteSong(Playlist *playlist) {
     int songIndex = -1;
     printSongs(playlist);
-    printf("Choose a song to delete, or 0 to quit:\n");
+    printf("choose a song to delete, or 0 to quit:\n");
     scanf("%d", &songIndex);
     if (playlist->headSong == NULL) {
         return;
@@ -466,7 +466,7 @@ char *allocateMemoryForField() {
         field[size++] = ch; // Add the first valid character to the name
 
         // Read the rest of the playlist name one character at a time
-        while ((ch = getchar()) != '\n') {
+        while ((ch = getchar()) != '\n' && ch != '\r') {
             temp = realloc(field, size + 2);
             if (temp == NULL) {
                 free(field);
@@ -480,6 +480,12 @@ char *allocateMemoryForField() {
     if (field) {
         field[size] = '\0'; // Null-terminate the string
     }
+    // Trim trailing whitespace
+    while (size > 0 && (field[size - 1] == ' ' || field[size - 1] == '\t' || field[size - 1] == '\v' || field[size - 1]
+                        == '\f')) {
+        field[--size] = '\0';
+    }
+
 
     return field;
 }
@@ -675,6 +681,7 @@ void removePlaylist(Playlist **head, int *currentNumberOfPlaylists) {
         *head = (*head)->next; // Move the head to the next playlist
         freePlaylist(temp); // Free the old head
         (*currentNumberOfPlaylists)--; // Decrease the count
+        printf("Playlist deleted.\n");
         return;
     }
 
@@ -689,6 +696,7 @@ void removePlaylist(Playlist **head, int *currentNumberOfPlaylists) {
             prev->next = currentPlaylist->next; // Bypass the current playlist
             freePlaylist(currentPlaylist);
             (*currentNumberOfPlaylists)--; // Decrease the playlist count
+            printf("Playlist deleted.\n");
             return;
         }
         prev = currentPlaylist; // Move to the next playlist
