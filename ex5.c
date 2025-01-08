@@ -33,7 +33,7 @@ typedef struct Playlist {
 void managePlaylistMenu(Playlist *playlist, Playlist *playlists, const int *currentNumOfPlaylists);
 
 //this function receives a pointer to a playlist and prints the menu of the playlist
-void printPlaylistMenu(const Playlist *playlist);
+void printPlaylistMenu();
 
 //this function prints the main menu
 void printMainMenu();
@@ -50,7 +50,7 @@ void playSong(const Playlist *playlist, int songIndex);
 //this function adds a song to the playlist
 void addSong(Playlist *playlist);
 
-Song *createSong(const char *title, const char *artist, int yearOfRelease, const char *lyrics);
+Song *createSong(char *title, char *artist, int yearOfRelease, char *lyrics);
 
 //this function deletes a song
 void deleteSong(Playlist *playlist);
@@ -65,7 +65,7 @@ void printListOfPlaylists(Playlist *playlists, const int *currentNumOfPlaylists)
 //this function adds a playlist
 void addPlaylist(Playlist **head, int *currentNumberOfPlaylists);
 
-Playlist *createPlaylist(const char *name);
+Playlist *createPlaylist(const char *playlistName);
 
 char *allocateMemoryForField();
 
@@ -118,29 +118,26 @@ int main() {
         scanf("%d", &choice);
     }
     printf("Goodbye!\n");
-    //fix free of all playlists
-    if(playlists != NULL) {
-        playlists->next = NULL;
-        freePlaylist(playlists);
+    // Free all playlists
+    Playlist *tempPlaylist;
+    while (playlists != NULL) {
+        tempPlaylist = playlists;
+        playlists = playlists->next;
+        freePlaylist(tempPlaylist);
     }
     return 0;
 }
 
 void freePlaylist(Playlist *playlistPointer) {
-    Song *temp = playlistPointer->headSong;
-    if(playlistPointer->songsNum == 1) {
-        free(playlistPointer->headSong);
-        return;
-    }
+    Song *tempSong = playlistPointer->headSong;
 
-    while (temp != NULL) {
-        Song *songToDelete = temp;
-        temp = temp->next; // Move to the next song
+    while (tempSong != NULL) {
+        Song *songToDelete = tempSong;
+        tempSong = tempSong->next; // Move to the next song
         freeSong(songToDelete);
     }
 
     free(playlistPointer->name);
-    free(playlistPointer->next);
     free(playlistPointer);
 }
 
@@ -224,7 +221,7 @@ Playlist *findPlaylist(Playlist *head, int userChoice) {
 void managePlaylistMenu(Playlist *playlist, Playlist *playlists, const int *currentNumOfPlaylists) {
     int choice = 0;
     printf("playlist %s:\n", playlist->name);
-    printPlaylistMenu(playlist);
+    printPlaylistMenu();
     scanf("%d", &choice);
 
     while (choice != DONE_PLAYLIST_MENU) {
@@ -255,7 +252,7 @@ void managePlaylistMenu(Playlist *playlist, Playlist *playlists, const int *curr
     watchPlaylists(playlists, currentNumOfPlaylists);
 }
 
-void printPlaylistMenu(const Playlist *playlist) {
+void printPlaylistMenu() {
     printf("\t1. Show Playlist\n");
     printf("\t2. Add Song\n");
     printf("\t3. Delete Song\n");
@@ -274,7 +271,7 @@ void showPlaylist(Playlist *playlist) {
     }
     while (songIndex != 0) {
         playSong(playlist, songIndex - 1);
-        printf("\nChoose a song to play, or 0 to quit:\n");
+        printf("Choose a song to play, or 0 to quit:\n");
         scanf("%d", &songIndex);
     }
 }
@@ -297,7 +294,7 @@ void playSong(const Playlist *playlist, int songIndex) {
         currentSong = currentSong->next;
     }
 
-    printf("Now playing %s:\n$%s$\n\n", currentSong->title, currentSong->lyrics);
+    printf("Now playing %s:\n$%s$\n", currentSong->title, currentSong->lyrics);
     (currentSong->streams)++;
 }
 
@@ -307,17 +304,18 @@ void addSong(Playlist *playlist) {
     printf("Title:\n");
     //check if allowed
     getchar();
-    const char *title = allocateMemoryForField();
+    char *title = allocateMemoryForField();
 
     printf("Artist:\n");
-    const char *artist = allocateMemoryForField();
+    char *artist = allocateMemoryForField();
     printf("Year of release:\n");
     scanf("%d", &year);
     printf("Lyrics:\n");
     getchar();
-    const char *lyrics = allocateMemoryForField();
+    char *lyrics = allocateMemoryForField();
 
     Song *newSong = createSong(title, artist, year, lyrics);
+
     if (playlist->headSong == NULL) {
         playlist->headSong = newSong;
     } else {
@@ -331,10 +329,14 @@ void addSong(Playlist *playlist) {
 
     newSong->next = NULL;
     (playlist->songsNum)++;
+
+    free(title);
+    free(artist);
+    free(lyrics);
 }
 
-Song *createSong(const char *title, const char *artist, const int yearOfRelease, const char *lyrics) {
-    Song *song = (Song *) malloc(sizeof(Song));
+Song *createSong(char *title, char *artist, int yearOfRelease, char *lyrics) {
+    Song *song = malloc(sizeof(Song));
     if (song == NULL) {
         exit(1);
     }
@@ -342,7 +344,6 @@ Song *createSong(const char *title, const char *artist, const int yearOfRelease,
     song->title = (char *) malloc(strlen(title) + 1);
     song->artist = (char *) malloc(strlen(artist) + 1);
     song->lyrics = (char *) malloc(strlen(lyrics) + 1);
-
 
     if (song->artist == NULL || song->lyrics == NULL || song->title == NULL) {
         freeSong(song);
@@ -399,45 +400,49 @@ void deleteSong(Playlist *playlist) {
 }
 
 void addPlaylist(Playlist **head, int *currentNumberOfPlaylists) {
-    Playlist *newPlaylist = (Playlist *) malloc(sizeof(Playlist));
+    printf("Enter playlist's name:\n");
+    getchar();
+    char *playlistName = allocateMemoryForField();
+    Playlist *newPlaylist = createPlaylist(playlistName);
+    // // If the list is empty (head is NULL), make newPlaylist the head
+    if (*head == NULL) {
+        *head = newPlaylist;
+    } else {
+        Playlist *temp = *head;
+        // find the last playlist and append the new one
+        while (temp->next != NULL) {
+            temp = temp->next;
+        }
+        temp->next = newPlaylist;
+        newPlaylist->next = NULL;
+    }
+
+    // Update the playlists counter
+    (*currentNumberOfPlaylists)++;
+    free(playlistName);
+}
+
+Playlist *createPlaylist(const char *playlistName) {
+    Playlist *newPlaylist = malloc(sizeof(Playlist));
     if (newPlaylist == NULL) {
         exit(1);
     }
 
-    // If the list is empty (head is NULL), make newPlaylist the head
-    if (*head == NULL) {
-        *head = newPlaylist;
-    }
-
-    printf("Enter playlist's name:\n");
-    getchar();
-    char *playlistName = allocateMemoryForField();
-
     // Allocate memory for the playlist name and copy it
     newPlaylist->name = (char *) malloc(strlen(playlistName) + 1); // +1 for the null terminator
     if (newPlaylist->name == NULL) {
+        free(newPlaylist);
         exit(1);
     }
-    strcpy(newPlaylist->name, playlistName);
 
-    // Clean up the temporary name buffer
-    free(playlistName);
+    strcpy(newPlaylist->name, playlistName);
 
     // Initialize the new playlist
     newPlaylist->headSong = NULL; // No songs initially
     newPlaylist->songsNum = 0; // No songs initially
     newPlaylist->next = NULL; // No next playlist for now
 
-    // find the last playlist and append the new one
-    Playlist *temp = *head;
-    while (temp->next != NULL) {
-        temp = temp->next;
-    }
-    temp->next = newPlaylist;
-    newPlaylist->next = NULL;
-
-    // Update the playlists counter
-    (*currentNumberOfPlaylists)++;
+    return newPlaylist;
 }
 
 //ask claude to add a cleaning of tavim shkufim
@@ -449,11 +454,12 @@ char *allocateMemoryForField() {
 
     // Read the playlist name one character at a time
     while ((ch = getchar()) != '\n') {
-        // Allocate or reallocate memory for the name
-        field = (char *) realloc(field, size + 2); // +1 for the new char, +1 for '\0'
-        if (field == NULL) {
+        char *temp = realloc(field, size + 2);
+        if (temp == NULL) {
+            free(field);
             exit(1);
         }
+        field = temp;
         field[size++] = ch; // Add the character to the name
     }
 
@@ -582,7 +588,7 @@ void sortByYear(Playlist *playlist) {
             if (current->year > current->next->year) {
                 // Swap the songs if they are in the wrong order
                 Song *temp = current->next; // Point to the next node
-                current->next = temp->next; // Skip over the next node (link to the next of next)
+                current->next = temp->next;
                 temp->next = current; // Now, the next of temp points to current (swap complete)
 
                 // Update the head if the swapped node is the new head
